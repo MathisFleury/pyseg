@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brainseg"
+version = "0.3"
+description = "ggseg-style brain plots for Python, with significance outlines that stay on top"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [{name = "Mathis Fleury", email = "mathis.fleury@pasteur.fr"}]
+keywords = ["neuroimaging", "brain", "atlas", "ggseg", "plotting", "freesurfer"]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Programming Language :: Python :: 3",
+]
+dependencies = ["matplotlib>=3.5", "numpy"]
+
+[project.optional-dependencies]
+ggplot = ["plotnine", "pandas"]
+
+[project.urls]
+Source = "https://github.com/MathisFleury/brainseg"
+
+[tool.setuptools.packages.find]
+include = ["brainseg*"]
+
+[tool.setuptools.package-data]
+brainseg = ["data/*/*", "data/*/*/*"]
