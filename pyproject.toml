@@ -3,7 +3,7 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "brainseg"
+name = "pyseg"
 version = "0.3"
 description = "ggseg-style brain plots for Python, with significance outlines that stay on top"
 readme = "README.md"
@@ -22,10 +22,10 @@ dependencies = ["matplotlib>=3.5", "numpy"]
 ggplot = ["plotnine", "pandas"]
 
 [project.urls]
-Source = "https://github.com/MathisFleury/brainseg"
+Source = "https://github.com/MathisFleury/pyseg"
 
 [tool.setuptools.packages.find]
-include = ["brainseg*"]
+include = ["pyseg*"]
 
 [tool.setuptools.package-data]
-brainseg = ["data/*/*", "data/*/*/*"]
+pyseg = ["data/*/*", "data/*/*/*"]

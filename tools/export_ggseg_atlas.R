@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Export ggseg atlases to brainseg's format. Run from the repo root:
+# Export ggseg atlases to pyseg's format. Run from the repo root:
 #   Rscript tools/export_ggseg_atlas.R dk aseg glasser schaefer7_400
 #
 #   data/<atlas>/_aliases          ggseg's own labels -> region file names
@@ -10,9 +10,9 @@ suppressMessages(library(sf))
 for (p in c("ggseg", "ggsegSchaefer", "ggsegGlasser", "ggsegExtra"))
   suppressWarnings(suppressMessages(try(library(p, character.only = TRUE), silent = TRUE)))
 
-out_root <- "brainseg/data"
+out_root <- "pyseg/data"
 
-# ggseg y grows upward, brainseg reads SVG coordinates (y down), hence oy - Y.
+# ggseg y grows upward, pyseg reads SVG coordinates (y down), hence oy - Y.
 as_path <- function(geom, ox, oy) {
   cs <- st_coordinates(geom)
   ring <- do.call(paste, c(as.data.frame(cs[, setdiff(colnames(cs), c("X", "Y")), drop = FALSE]), sep = "-"))

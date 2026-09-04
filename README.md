@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/logo.png" width="320" alt="brainseg">
+  <img src="docs/logo.png" width="320" alt="pyseg">
 </p>
 
-<h1 align="center">brainseg</h1>
+<h1 align="center">pyseg</h1>
 
 <p align="center">
   <em>ggseg-style brain plots for Python — with significance outlines that stay on top.</em>
@@ -19,7 +19,7 @@
 
 `ggseg` draws each region as a single patch carrying both fill and edge, so a
 neighbour drawn later paints over the black outline of a significant region —
-and the figure has to be restacked by hand in Illustrator. `brainseg` draws
+and the figure has to be restacked by hand in Illustrator. `pyseg` draws
 fills, then all outlines, then significant outlines, as separate passes. Nothing
 can occlude anything.
 
@@ -37,15 +37,15 @@ can occlude anything.
 
 ```sh
 pip install -e .              # add [ggplot] for the plotnine layer
-python test_brainseg.py       # check
+python test_pyseg.py       # check
 ```
 
 ## Quick start
 
 ```python
-import brainseg
+import pyseg
 
-fig, ax = brainseg.plot_brain(
+fig, ax = pyseg.plot_brain(
     {"superiorfrontal_left": 2.1, "insula_right": -1.4},   # dict or pd.Series
     atlas="dk",
     sig=["superiorfrontal_left"],     # or {region: bool}; drawn black, on top
@@ -60,9 +60,9 @@ there is no data (`na_color`), black on top for `sig` (`sig_color`, `sig_lw`).
 ### Layout
 
 ```python
-brainseg.plot_brain(t, position="stacked")   # views x hemispheres; default "dispersed"
-brainseg.plot_brain(t, hemisphere="left")
-brainseg.plot_brain(t, view="lateral")
+pyseg.plot_brain(t, position="stacked")   # views x hemispheres; default "dispersed"
+pyseg.plot_brain(t, hemisphere="left")
+pyseg.plot_brain(t, view="lateral")
 ```
 
 ### ggplot
@@ -72,13 +72,13 @@ grammar takes over — scales, themes, labs, and your own facetting:
 
 ```python
 from plotnine import scale_fill_gradient2, labs
-brainseg.geom_brain(t, sig=fdr_hits) + scale_fill_gradient2() + labs(fill="t")
+pyseg.geom_brain(t, sig=fdr_hits) + scale_fill_gradient2() + labs(fill="t")
 ```
 
 ### Connectome
 
 ```python
-brainseg.plot_connectome(corr_df, atlas="dk", hemisphere="left", threshold=0.3)
+pyseg.plot_connectome(corr_df, atlas="dk", hemisphere="left", threshold=0.3)
 ```
 
 ## API
@@ -129,7 +129,7 @@ plus `_panels`, `_wall` silhouettes and an `_aliases` table of ggseg's labels.
 ggseg's traced geometry sheds strays: sub-pixel rings, and slivers of a parcel
 left in a view it barely reaches. They are invisible when filled, but each one
 still takes an outline stroke, so with `sig` they show up as lone specks and
-dashes. `brainseg` drops them on load — never the last shape a parcel has, and
+dashes. `pyseg` drops them on load — never the last shape a parcel has, and
 never a hole. Outlines also get two rounds of corner cutting, since ggseg's
 traces are coarse enough to look spiky once you stroke them; the cut is scaled
 to each ring, so parcels keep their area to within 2% (`smooth=0` for the raw
