@@ -17,11 +17,15 @@
 
 ---
 
-`ggseg` draws each region as a single patch carrying both fill and edge, so a
-neighbour drawn later paints over the black outline of a significant region —
-and the figure has to be restacked by hand in Illustrator. `pyseg` draws
-fills, then all outlines, then significant outlines, as separate passes. Nothing
-can occlude anything.
+We really like [ggseg](https://github.com/ggseg/ggseg). We also really like
+Python. `pyseg` brings ggseg's look and its vocabulary across: the same atlases,
+the same `position` / `hemisphere` / `view`, drawn with matplotlib — or as a
+[plotnine](https://plotnine.org) layer, if you miss the grammar.
+
+It adds the one thing we kept fixing by hand afterwards. Outlines marking
+significant regions are drawn as their own pass, above every fill, so a
+neighbouring region can never paint over them and the figure comes out of the
+script ready to use.
 
 ## Features
 
@@ -29,7 +33,7 @@ can occlude anything.
 - **Five atlases**, exported from R: dk, aseg, glasser, schaefer7_400, jhu.
 - **ggseg's layout**: `position`, `hemisphere`, `view`, in ggseg's own vocabulary.
 - **Forgiving region names** — FreeSurfer output plots without renaming a thing.
-- **Clean geometry** — ggseg's stray specks and staircase corners handled on load.
+- **Clean geometry** — stray specks and coarse corners smoothed out on load.
 - **Two backends** — matplotlib, or a `plotnine` layer for the full ggplot grammar.
 - **Connectomes** — arcs between region centroids, over the same atlas.
 
@@ -126,11 +130,11 @@ plus `_panels`, `_wall` silhouettes and an `_aliases` table of ggseg's labels.
 
 ## Geometry cleanup
 
-ggseg's traced geometry sheds strays: sub-pixel rings, and slivers of a parcel
-left in a view it barely reaches. They are invisible when filled, but each one
-still takes an outline stroke, so with `sig` they show up as lone specks and
-dashes. `pyseg` drops them on load — never the last shape a parcel has, and
-never a hole. Outlines also get two rounds of corner cutting, since ggseg's
+The traced atlas geometry carries a few strays: sub-pixel rings, and slivers of
+a parcel left in a view it barely reaches. They are invisible when filled, but
+each one still takes an outline stroke, so with `sig` they show up as lone
+specks and dashes. `pyseg` drops them on load — never the last shape a parcel
+has, and never a hole. Outlines also get two rounds of corner cutting, since the
 traces are coarse enough to look spiky once you stroke them; the cut is scaled
 to each ring, so parcels keep their area to within 2% (`smooth=0` for the raw
 geometry).
