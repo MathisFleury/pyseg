@@ -140,6 +140,7 @@ Rscript tools/export_ggseg_atlas.R dkt aal   # from the repo root
 That writes `pyseg/data/<atlas>.tsv.gz`. R is a maintainer's tool, never a
 user's. `atlas=` also takes a path to such a file, or to a directory of one
 file per region if you trace your own.
+[`pyseg/data/README.md`](pyseg/data/README.md) documents the file format.
 
 ## Geometry cleanup
 

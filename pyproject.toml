@@ -28,4 +28,4 @@ Source = "https://github.com/MathisFleury/pyseg"
 include = ["pyseg*"]
 
 [tool.setuptools.package-data]
-pyseg = ["data/*.tsv.gz"]
+pyseg = ["data/*.tsv.gz", "data/README.md"]
