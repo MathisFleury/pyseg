@@ -441,14 +441,23 @@ def plot_subcortical(data=None, sig=(), hemisphere=None, view=None,
                          for r in (f"{structs[i]}_{hemi}" for i in lab[f[:, 0]][front])])
         face[:, :3] *= shade[:, None]
 
-        # Structures occlude each other, so an outline behind one is hidden --
-        # depth-test it against what is actually painted.
-        res = 120
+        # Structures occlude each other, so an outline behind one is hidden.
+        # Two depth tests, not one: a structure must not cull its own rim. At a
+        # rim the surface just inside it is several mm nearer within one cell,
+        # so a single buffer with a tolerance loose enough to keep the rim lets
+        # everything behind print through, and a tight one dashes the rim.
+        res = 160
         cen, cdep = uv[f[front]].mean(1), dep[f[front]].mean(1)
         lo, span = cen.min(0), (cen.max(0) - cen.min(0)).max()
-        buf = np.full((res, res), -np.inf)
-        g = ((cen - lo) / span * (res - 1)).astype(int).clip(0, res - 1)
-        np.maximum.at(buf, (g[:, 1], g[:, 0]), cdep)
+        cell = ((cen - lo) / span * (res - 1)).astype(int).clip(0, res - 1)
+        who = lab[f[:, 0]][front]
+
+        def zbuf(mask):
+            b = np.full((res, res), -np.inf)
+            np.maximum.at(b, (cell[mask, 1], cell[mask, 0]), cdep[mask])
+            return b
+
+        self_buf = {i: zbuf(who == i) for i in np.unique(who)}
 
         segs = []
         for i, st in enumerate(structs):
@@ -459,8 +468,10 @@ def plot_subcortical(data=None, sig=(), hemisphere=None, view=None,
             if not len(e):
                 continue
             q = (((uv[e].mean(1) - lo) / span * (res - 1)).astype(int).clip(0, res - 1))
-            near = buf[q[:, 1], q[:, 0]]
-            vis = np.isfinite(near) & (dep[e].mean(1) >= near - 3.0)
+            d = dep[e].mean(1)
+            other = zbuf(who != i)[q[:, 1], q[:, 0]]
+            mine = self_buf[i][q[:, 1], q[:, 0]]
+            vis = (~np.isfinite(other) | (d >= other - 1.0)) & (d >= mine - 6.0)
             # Depth alone cannot separate the outline from the silhouette of
             # every interior fold: at the rim the surface just inside it is
             # nearer, so a tolerance tight enough to drop the folds eats the
