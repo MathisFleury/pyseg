@@ -130,6 +130,15 @@ plus `_panels`, `_wall` silhouettes and an `_aliases` table of ggseg's labels.
 
 ## Geometry cleanup
 
+ggseg's atlases were digitised region by region rather than built as a
+partition, so neighbours genuinely overlap — in dk's left lateral panel 43 of
+210 region pairs do, fusiform and inferior temporal by 15.6% of the smaller one.
+Drawn as separate patches that reads as doubled, uneven borders. The exporter
+cuts each region out of what has already been placed, smallest first, so a panel
+is a true partition and every border is one line: overlap drops from 2.31% of
+the panel's area to 0, and the covered area is unchanged. Set `TOPOLOGY <- FALSE`
+in the exporter for ggseg's raw polygons.
+
 The traced atlas geometry carries a few strays: sub-pixel rings, and slivers of
 a parcel left in a view it barely reaches. They are invisible when filled, but
 each one still takes an outline stroke, so with `sig` they show up as lone

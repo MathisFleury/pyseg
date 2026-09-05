@@ -131,6 +131,24 @@ curved = [pl for p in pyseg._atlas("jhu")[0] for pl in p.paths.values()
           if MPath.CURVE4 in pl.codes]
 assert curved and all(MPath.CURVE4 in pl.codes for pl in curved)   # left alone
 
+# Panels are a partition. ggseg's atlases were digitised region by region, so
+# neighbours overlapped -- 2.3% of dk's left lateral panel, drawn as doubled,
+# uneven borders. tools/export_ggseg_atlas.R cuts each region out of what is
+# already placed; this is what stops that regressing.
+def overlap(atlas, panel, n=300):
+    p = next(q for q in pyseg._atlas(atlas, 0)[0] if q.name == panel)
+    v = np.vstack([x.vertices for x in p.paths.values()])
+    (x0, y0), (x1, y1) = v.min(0), v.max(0)
+    gx, gy = np.meshgrid(np.linspace(x0, x1, n), np.linspace(y0, y1, n))
+    pts = np.column_stack([gx.ravel(), gy.ravel()])
+    hits = sum(q.contains_points(pts).astype(int) for q in p.paths.values())
+    return (hits >= 2).sum() / max((hits >= 1).sum(), 1)
+
+for a in ("dk", "aseg", "glasser", "schaefer7_400"):     # jhu is hand-vendored,
+    for pan, _, _ in pyseg.brain_views(a):               # not exported, not a partition
+        f = overlap(a, pan)
+        assert f < 0.002, f"{a}/{pan} regions overlap over {f:.2%} of the panel"
+
 # ggplot layer
 df = pyseg.as_brain_df("dk")
 assert set(df.columns) == {"region", "hemi", "side", "panel", "ring", "x", "y"}

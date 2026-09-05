@@ -4,3 +4,6 @@ __pycache__/
 build/
 dist/
 .DS_Store
+
+# regenerable figure sweeps (python examples/gallery.py)
+examples/gallery/

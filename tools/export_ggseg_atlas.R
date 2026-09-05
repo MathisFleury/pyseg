@@ -22,6 +22,40 @@ as_path <- function(geom, ox, oy) {
 }
 clean <- function(x) gsub("[^A-Za-z0-9_.+-]", "", gsub(" ", "", x))
 
+# ggseg's atlases were digitised region by region, not built as a partition, so
+# neighbours genuinely overlap -- in dk's left lateral panel, 43 of 210 pairs do,
+# fusiform and inferior temporal by 15.6% of the smaller one. Drawn as separate
+# patches that shows up as doubled, uneven borders. Cutting each region out of
+# what has already been placed makes the panel a true partition, so every border
+# is one line. Smallest first: a contested strip costs a small parcel a large
+# share of itself and a big one almost nothing.
+TOPOLOGY <- TRUE
+
+polys <- function(g) {
+  g <- suppressWarnings(st_collection_extract(g, "POLYGON"))
+  if (length(g) == 0) return(g)
+  p <- suppressWarnings(st_cast(g, "POLYGON"))
+  a <- as.numeric(st_area(p))
+  keep <- a >= 0.02 * sum(a)          # st_difference sheds slivers; drop them
+  if (!any(keep)) keep[which.max(a)] <- TRUE
+  st_union(p[keep])
+}
+
+partition <- function(geo) {
+  ord <- order(vapply(geo, function(g) as.numeric(sum(st_area(g))), 0))
+  acc <- NULL
+  for (k in names(geo)[ord]) {
+    g <- geo[[k]]
+    if (!is.null(acc)) {
+      cut <- polys(suppressWarnings(st_difference(g, acc)))
+      if (length(cut) && !all(st_is_empty(cut))) g <- cut
+    }
+    geo[[k]] <- g
+    acc <- if (is.null(acc)) g else suppressWarnings(st_union(acc, g))
+  }
+  geo
+}
+
 for (name in commandArgs(TRUE)) {
   d <- get(name)$data
   d$side <- if ("side" %in% names(d)) as.character(d$side) else ""
@@ -59,9 +93,13 @@ for (name in commandArgs(TRUE)) {
     pdir <- clean(if (nchar(hemi)) paste(hemi, side, sep = "_") else side)
     b <- st_bbox(sub)
     dir.create(file.path(wd, pdir))
-    for (k in unique(na.omit(sub$key)))
-      writeLines(as_path(st_geometry(sub)[which(sub$key == k)], b["xmin"], b["ymax"]),
-                 file.path(wd, pdir, k))
+    keys <- unique(na.omit(sub$key))
+    geo <- lapply(keys, function(k)
+      st_union(st_make_valid(st_geometry(sub)[which(sub$key == k)])))
+    names(geo) <- keys
+    if (TOPOLOGY) geo <- partition(geo)
+    for (k in keys)
+      writeLines(as_path(geo[[k]], b["xmin"], b["ymax"]), file.path(wd, pdir, k))
     if (any(is.na(sub$key)))
       writeLines(as_path(st_geometry(sub)[which(is.na(sub$key))], b["xmin"], b["ymax"]),
                  file.path(wd, pdir, "_wall"))
