@@ -37,6 +37,8 @@ script ready to use.
 - **Clean geometry** — stray specks and coarse corners smoothed out on load.
 - **Two backends** — matplotlib, or a `plotnine` layer for the full ggplot grammar.
 - **Connectomes** — arcs between region centroids, over the same atlas.
+- **Outlines on someone else's 3-D scene** — silhouette a structure in a
+  pyvista/yabplot render.
 
 ## Install
 
@@ -79,6 +81,24 @@ grammar takes over — scales, themes, labs, and your own facetting:
 from plotnine import scale_fill_gradient2, labs
 pyseg.geom_brain(t, sig=fdr_hits) + scale_fill_gradient2() + labs(fill="t")
 ```
+
+### Subcortical surfaces
+
+Subcortical structures are separate closed meshes, so they have no shared
+boundary to trace — what marks one out is its silhouette. Renderers that draw
+them well have no way to outline one, so pyseg adds it to the scene they return:
+
+```python
+import yabplot, pyseg
+pl = yabplot.plot_subcortical(data=counts, custom_atlas_path=d,
+                              display_type="object", views=views, layout=(1, 2))
+pyseg.outline_meshes(pl, [f"{d}/{r}.vtk" for r in significant], lw=5)
+pl.screenshot("fig.png")
+```
+
+`smooth=` should match how the renderer smoothed the meshes — yabplot's default
+is `(15, 0.6)`, which is also pyseg's. Needs pyvista, which the renderer brought
+in already.
 
 ### Connectome
 

@@ -21,7 +21,7 @@ from matplotlib.transforms import Affine2D
 __version__ = "0.3"
 __all__ = ["plot_brain", "plot_dk", "plot_aseg", "plot_tracts", "plot_connectome",
            "geom_brain", "as_brain_df", "brain_atlases", "brain_regions",
-           "brain_labels", "brain_views"]
+           "brain_labels", "brain_views", "outline_meshes"]
 
 _DATA = os.path.join(os.path.dirname(__file__), "data")
 _CMD = {"M": Path.MOVETO, "L": Path.LINETO, "Q": Path.CURVE3,
@@ -423,6 +423,43 @@ def plot_connectome(edges, atlas="dk", nodes=None, threshold=0.0, hemisphere=Non
                           fraction=0.025, pad=0.02)
         cb.set_label(ylabel)
     return fig, ax
+
+
+def outline_meshes(plotter, meshes, color="black", lw=4, smooth=(15, 0.6)):
+    """pyseg's significance outline on someone else's 3-D scene.
+
+    Subcortical structures are separate closed meshes, so they have no shared
+    boundary to trace -- what marks one out is its silhouette. Renderers that
+    draw them well (yabplot, via pyvista) have no way to outline a structure, so
+    this adds one to the scene they hand back:
+
+    >>> pl = yabplot.plot_subcortical(data=counts, custom_atlas_path=d,
+    ...                               display_type="object", views=views)
+    >>> pyseg.outline_meshes(pl, [f"{d}/{r}.vtk" for r in significant])
+    >>> pl.screenshot("fig.png")
+
+    meshes : paths to mesh files, or pyvista meshes already loaded.
+    smooth : (iterations, relaxation) to match how the renderer smoothed them --
+             yabplot's default is (15, 0.6). None to leave them alone.
+    Needs pyvista, which the renderer already brought in. Returns the plotter.
+    """
+    import pyvista as pv
+
+    loaded = [m if hasattr(m, "points") else pv.read(str(m)) for m in meshes]
+    if smooth:
+        loaded = [m.smooth(n_iter=smooth[0], relaxation_factor=smooth[1])
+                  for m in loaded]
+    # Walk the renderers, not plotter.shape: a scene with a shared colourbar
+    # reports a grid it does not really have, and row/column indexing then puts
+    # every outline in the colourbar. A view holds the structure meshes; the
+    # colourbar cell holds one actor.
+    views = [i for i, r in enumerate(plotter.renderers) if len(r.actors) > 1]
+    for i in views or range(len(plotter.renderers)):
+        loc = plotter.renderers.index_to_loc(i)
+        plotter.subplot(*(loc if isinstance(loc, (tuple, list, np.ndarray)) else (loc,)))
+        for m in loaded:
+            plotter.add_silhouette(m, color=color, line_width=lw)
+    return plotter
 
 
 def as_brain_df(atlas="dk"):
