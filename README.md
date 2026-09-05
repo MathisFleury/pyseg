@@ -150,6 +150,12 @@ geometry).
 
 ## Example
 
+[`examples/dk_example.py`](examples/dk_example.py) plots a synthetic t-map on dk
+and aseg, outlined regions in black. [`examples/gallery.py`](examples/gallery.py)
+sweeps every layout against three outline weights.
+
+![](examples/dk_example.png)
+
 ## Credits
 
 Atlas geometry from [ggseg](https://github.com/ggseg/ggseg) (MIT) and

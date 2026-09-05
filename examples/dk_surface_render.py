@@ -13,6 +13,7 @@ top, so a neighbouring patch cannot paint over them.
 Surfaces and the DK label vector come from a local ENIGMA toolbox checkout.
 Run examples/dk_surface_check.py to verify every region actually comes out.
 """
+import os
 import sys
 from functools import lru_cache
 
@@ -24,7 +25,10 @@ from matplotlib.collections import LineCollection, PolyCollection
 from scipy import sparse
 from scipy.sparse.csgraph import connected_components
 
-ENIGMA = "/Users/mfleury/POSTDOC/LIBRAIRY/ENIGMA/enigmatoolbox/datasets/"
+# A local ENIGMA toolbox checkout supplies the meshes and the DK label vector.
+ENIGMA = os.environ.get("ENIGMA_DATA",
+                       os.path.expanduser("~/POSTDOC/LIBRAIRY/ENIGMA/"
+                                          "enigmatoolbox/datasets/"))
 SURFACE = "conte69"             # conte69 = 32k vertices a side, fsa5 = 10k
 INFLATE = 200                   # smoothing rounds; 0 renders the folded surface,
                                 # but then half of every outline hides in a sulcus.
