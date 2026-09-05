@@ -30,6 +30,18 @@ def main():
         print(f"{atlas}: {len(sig)}/{len(values)} outlined "
               f"-> examples/{atlas}_example.pdf")
 
+    # The same structures as surfaces rather than slices.
+    names = pyseg.subcortical_regions()
+    t = np.random.default_rng(1).normal(0, 1.5, len(names))
+    values = dict(zip(names, t))
+    sig = [r for r, v in values.items() if abs(v) > 1.4]
+    fig, _ = pyseg.plot_subcortical(
+        values, sig=sig, cmap="RdBu_r", vmin=-4, vmax=4, ylabel="t (synthetic)",
+        title=f"Subcortical surfaces — black outline: |t| > 1.4")
+    for ext in ("pdf", "png"):
+        fig.savefig(f"examples/sctx_example.{ext}", dpi=200, bbox_inches="tight")
+    print(f"sctx: {len(sig)}/{len(values)} outlined -> examples/sctx_example.pdf")
+
 
 if __name__ == "__main__":
     main()

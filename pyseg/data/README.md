@@ -53,6 +53,17 @@ for line in gzip.open("dk.tsv.gz", "rt"):
         regions.setdefault(panel, {})[name] = path
 ```
 
+## sctx.npz
+
+The subcortical surfaces `plot_subcortical` draws, as compressed numpy arrays:
+`<hemi>_v` vertices, `<hemi>_f` faces, `<hemi>_lab` the structure each vertex
+belongs to, and `structs` their names. Sixteen closed meshes, eight a side --
+not one face straddles two of them, which is why a structure's outline is its
+silhouette rather than a shared boundary.
+
+Built by `tools/pack_sctx_meshes.py` from an ENIGMA toolbox checkout
+(BSD 3-Clause; see LICENSE).
+
 ## Where it comes from
 
 `tools/export_ggseg_atlas.R` generates these from the R `ggseg` packages, and is

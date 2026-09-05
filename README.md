@@ -84,9 +84,23 @@ pyseg.geom_brain(t, sig=fdr_hits) + scale_fill_gradient2() + labs(fill="t")
 
 ### Subcortical surfaces
 
-Subcortical structures are separate closed meshes, so they have no shared
-boundary to trace — what marks one out is its silhouette. Renderers that draw
-them well have no way to outline one, so pyseg adds it to the scene they return:
+The other view of what `plot_aseg` draws as slices — the structures themselves,
+in matplotlib, with no 3-D toolkit:
+
+```python
+pyseg.plot_subcortical(t, sig=hits, view="lateral", position="stacked")
+pyseg.subcortical_regions()      # 16 names, same stems as aseg
+```
+
+A structure is a closed mesh of its own, so it has no shared boundary to trace
+the way a cortical parcel does; what marks it out is its silhouette, and that is
+what `sig` draws, occluded correctly by whatever is in front of it.
+
+![](examples/sctx_example.png)
+
+If you would rather render with [yabplot](https://github.com/teanijarv/yabplot),
+which does real 3-D through pyvista, pyseg can add the outline to the scene it
+returns:
 
 ```python
 import yabplot, pyseg

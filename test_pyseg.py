@@ -162,6 +162,32 @@ for a in ("dk", "aseg", "jhu", "glasser", "schaefer17_1000"):
     fig, _ = pyseg.plot_brain({names[0]: 1.0}, atlas=a, sig=[names[0]])
     plt.close(fig)
 
+# Subcortical surfaces. Structures are separate closed meshes, so a structure
+# is marked out by its silhouette, not by a boundary shared with a neighbour.
+from matplotlib.collections import LineCollection
+sr = pyseg.subcortical_regions()
+assert len(sr) == 16 and "hippocampus_left" in sr, sr
+assert len({c(x) for x in sr}) == 16                    # no two names collapse
+assert c("Left-Hippocampus") == c("hippocampus_left")   # FreeSurfer names land
+assert c("Left-Thalamus") == c("thalamusproper_left")
+
+vals = {r: i - 8 for i, r in enumerate(sr)}
+fig, sax = pyseg.plot_subcortical(vals, sig=["hippocampus_left"])
+lines = [x for x in sax.collections if isinstance(x, LineCollection)]
+assert lines and sum(len(x.get_segments()) for x in lines) > 20, "no outline drawn"
+plt.close(fig)
+fig, bare = pyseg.plot_subcortical(vals)                # nothing significant
+assert not [x for x in bare.collections if isinstance(x, LineCollection)]
+plt.close(fig)
+for kw in (dict(hemisphere="left"), dict(view="medial"), dict(position="stacked")):
+    fig, _ = pyseg.plot_subcortical(vals, sig=sr[:2], **kw)
+    plt.close(fig)
+with warnings.catch_warnings(record=True) as w:
+    warnings.simplefilter("always")
+    pyseg.plot_subcortical({"not-a-structure": 1.0})
+    assert w and "not-a-structure" in str(w[0].message)
+plt.close("all")
+
 # ggplot layer
 df = pyseg.as_brain_df("dk")
 assert set(df.columns) == {"region", "hemi", "side", "panel", "ring", "x", "y"}

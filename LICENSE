@@ -21,5 +21,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ---
+The subcortical surface meshes in pyseg/data/sctx.npz come from the ENIGMA
+TOOLBOX (https://github.com/MICA-MNI/ENIGMA), BSD 3-Clause,
+Copyright (c) 2020, saratheriver.
+
 Atlas geometry is derived from ggseg (https://github.com/ggseg/ggseg), MIT
 licensed, and from python-ggseg (https://github.com/ggseg/python-ggseg).

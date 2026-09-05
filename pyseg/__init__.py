@@ -14,6 +14,9 @@ from functools import lru_cache
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy import sparse
+from scipy.sparse.csgraph import connected_components
+from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.patches import FancyArrowPatch, PathPatch
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
@@ -21,7 +24,8 @@ from matplotlib.transforms import Affine2D
 __version__ = "0.3"
 __all__ = ["plot_brain", "plot_dk", "plot_aseg", "plot_tracts", "plot_connectome",
            "geom_brain", "as_brain_df", "brain_atlases", "brain_regions",
-           "brain_labels", "brain_views", "outline_meshes"]
+           "brain_labels", "brain_views", "outline_meshes",
+           "plot_subcortical", "subcortical_regions"]
 
 _DATA = os.path.join(os.path.dirname(__file__), "data")
 _CMD = {"M": Path.MOVETO, "L": Path.LINETO, "Q": Path.CURVE3,
@@ -235,18 +239,22 @@ def brain_views(atlas="dk"):
     return [(p.name, p.hemi, p.side) for p in _atlas(atlas)[0]]
 
 
-def _resolve(atlas, data, sig):
-    """Map user region names onto atlas ones, warning about what didn't land."""
-    ps, alias = _atlas(atlas)
-    names = {k for p in ps for k in p.paths}
-    lut = {_canon(a): k for a, k in alias.items() if k in names}
+def _match(names, data, sig, alias=(), what="atlas"):
+    """Map user region names onto ours, warning about what didn't land."""
+    lut = {_canon(a): k for a, k in dict(alias).items() if k in names}
     lut.update({_canon(k): k for k in names})       # a region's own name wins
     data = {lut.get(_canon(k), k): v for k, v in data.items()}
     sig = [lut.get(_canon(k), k) for k in sig]
     unknown = [k for k in list(data) + sig if k not in names]
     if unknown:
-        warnings.warn(f"not in atlas {atlas!r}, ignored: {unknown}")
+        warnings.warn(f"not in {what}, ignored: {unknown}")
     return data, sig
+
+
+def _resolve(atlas, data, sig):
+    ps, alias = _atlas(atlas)
+    names = {k for p in ps for k in p.paths}
+    return _match(names, data, sig, alias, f"atlas {atlas!r}")
 
 
 def _select(ps, hemisphere, view):
@@ -341,6 +349,170 @@ def plot_brain(data=None, atlas="dk", sig=(), hemisphere=None, view=None,
             ax.add_patch(PathPatch(p, facecolor="none", edgecolor=sig_color,
                                    lw=sig_lw, zorder=3))
 
+    if colorbar and values:
+        cb = fig.colorbar(mpl.cm.ScalarMappable(norm, cmap), ax=ax,
+                          fraction=0.025, pad=0.02)
+        cb.set_label(ylabel)
+    return fig, ax
+
+
+_SCTX_PANELS = [("left", "lateral", 180), ("left", "medial", 0),
+                ("right", "medial", 180), ("right", "lateral", 0)]
+
+
+@lru_cache(maxsize=None)
+def _sctx():
+    """-> ({hemi: (verts, faces, normals, structure index)}, structure names)."""
+    z = np.load(os.path.join(_DATA, "sctx.npz"))
+    mesh = {}
+    for h in ("left", "right"):
+        v, f = z[f"{h}_v"].astype(float), z[f"{h}_f"].astype(int)
+        n = np.cross(v[f[:, 1]] - v[f[:, 0]], v[f[:, 2]] - v[f[:, 0]])
+        n /= np.linalg.norm(n, axis=1, keepdims=True) + 1e-12
+        if (n * (v[f].mean(1) - v[f].mean(1).mean(0))).sum() < 0:
+            n, f = -n, f[:, ::-1]                   # normals point outwards
+        mesh[h] = (v, f, n, z[f"{h}_lab"].astype(int))
+    return mesh, [str(x) for x in z["structs"]]
+
+
+def subcortical_regions():
+    """Structure names `plot_subcortical` draws. Same stems as aseg, so data
+    keyed for the flat atlas plots on the surfaces without renaming."""
+    return sorted(f"{s}_{h}" for s in _sctx()[1] for h in ("left", "right"))
+
+
+def _silhouette(f, front):
+    """Edges with a front-facing face on one side and a back-facing one on the
+    other. A subcortical structure is a closed mesh of its own -- not one face
+    straddles two of them -- so it has no shared boundary to trace the way a
+    cortical parcel does. What marks it out is its outline against the camera."""
+    e = np.sort(np.stack([f[:, [0, 1]], f[:, [1, 2]], f[:, [2, 0]]], 1).reshape(-1, 2), 1)
+    fid = np.repeat(np.arange(len(f)), 3)
+    o = np.lexsort((e[:, 1], e[:, 0]))
+    e, fid = e[o], fid[o]
+    pair = np.flatnonzero((e[1:] == e[:-1]).all(1))          # closed mesh: always 2
+    return e[pair][front[fid[pair]] != front[fid[pair + 1]]]
+
+
+def plot_subcortical(data=None, sig=(), hemisphere=None, view=None,
+                     position="dispersed", cmap="Spectral", vmin=None, vmax=None,
+                     na_color="0.85", sig_color="k", sig_lw=2.0, background="w",
+                     figsize=None, title="", ylabel="", colorbar=True, ax=None):
+    """Subcortical structures as surfaces, laid out like the flat panels.
+
+    The other view of what `plot_aseg` draws as a coronal and a sagittal slice.
+    Names come from `subcortical_regions()`; FreeSurfer's (Left-Hippocampus)
+    work too. `sig` structures get their silhouette drawn on top, so nothing in
+    front of them can paint over it.
+
+    view : "lateral" or "medial"; hemisphere : "left" or "right".
+    Returns (fig, ax); matplotlib only, no 3-D toolkit.
+    """
+    if isinstance(sig, dict):
+        sig = [k for k, v in sig.items() if v]
+    data, sig = _match(set(subcortical_regions()),
+                       dict(data.items()) if data is not None else {}, sig,
+                       what="the subcortical surfaces")
+
+    mesh, structs = _sctx()
+    sel = [p for p in _SCTX_PANELS if view in (None, p[1])
+           and hemisphere in (None, p[0])]
+    if not sel:
+        raise ValueError(f"no panel matches hemisphere={hemisphere!r} view={view!r}")
+
+    cmap = cmap if isinstance(cmap, mpl.colors.Colormap) else mpl.colormaps[cmap]
+    values = [v for k, v in data.items()]
+    norm = mpl.colors.Normalize(min(values, default=0) if vmin is None else vmin,
+                                max(values, default=1) if vmax is None else vmax)
+
+    panels = []
+    for hemi, side, azim in sel:
+        v, f, n, lab = mesh[hemi]
+        a = np.radians(azim)
+        fwd = np.array([np.cos(a), np.sin(a), 0.0])
+        P = np.stack([np.array([-np.sin(a), np.cos(a), 0.0]), np.cross(fwd, np.array([-np.sin(a), np.cos(a), 0.0]))])
+        uv, dep = v @ P.T, v @ fwd
+        front = (n @ fwd) > 0
+        order = np.argsort(dep[f].mean(1)[front])            # painter's algorithm
+
+        light = fwd + 0.45 * P[1] - 0.25 * P[0]
+        shade = 0.55 + 0.45 * np.clip(n[front] @ (light / np.linalg.norm(light)), 0, 1)
+        face = np.array([(cmap(norm(data[r])) if r in data else mpl.colors.to_rgba(na_color))
+                         for r in (f"{structs[i]}_{hemi}" for i in lab[f[:, 0]][front])])
+        face[:, :3] *= shade[:, None]
+
+        # Structures occlude each other, so an outline behind one is hidden --
+        # depth-test it against what is actually painted.
+        res = 120
+        cen, cdep = uv[f[front]].mean(1), dep[f[front]].mean(1)
+        lo, span = cen.min(0), (cen.max(0) - cen.min(0)).max()
+        buf = np.full((res, res), -np.inf)
+        g = ((cen - lo) / span * (res - 1)).astype(int).clip(0, res - 1)
+        np.maximum.at(buf, (g[:, 1], g[:, 0]), cdep)
+
+        segs = []
+        for i, st in enumerate(structs):
+            if f"{st}_{hemi}" not in sig:
+                continue
+            keep = lab[f[:, 0]] == i
+            e = _silhouette(f[keep], front[keep])
+            if not len(e):
+                continue
+            q = (((uv[e].mean(1) - lo) / span * (res - 1)).astype(int).clip(0, res - 1))
+            near = buf[q[:, 1], q[:, 0]]
+            vis = np.isfinite(near) & (dep[e].mean(1) >= near - 3.0)
+            # Depth alone cannot separate the outline from the silhouette of
+            # every interior fold: at the rim the surface just inside it is
+            # nearer, so a tolerance tight enough to drop the folds eats the
+            # outline too. They differ by connectivity instead -- the rim is one
+            # long chain, a fold is a short one.
+            if vis.any():
+                q = e[vis]
+                ids = np.unique(q)
+                idx = np.searchsorted(ids, q)
+                G = sparse.coo_matrix((np.ones(2 * len(idx)),
+                                       (np.r_[idx[:, 0], idx[:, 1]],
+                                        np.r_[idx[:, 1], idx[:, 0]])),
+                                      shape=(len(ids),) * 2).tocsr()
+                _, cc = connected_components(G, directed=False)
+                u, cnt = np.unique(cc[idx[:, 0]], return_counts=True)
+                vis[np.flatnonzero(vis)] = np.isin(cc[idx[:, 0]],
+                                                   u[cnt >= max(8, 0.15 * cnt.max())])
+            segs.append(uv[e][vis])
+        panels.append((uv[f][front][order], face[order],
+                       np.concatenate(segs) if segs else np.zeros((0, 2, 2))))
+
+    box = [np.array([t.reshape(-1, 2).min(0), t.reshape(-1, 2).max(0)])
+           for t, _, _ in panels]
+    cw = max(b[1, 0] - b[0, 0] for b in box)
+    ch = max(b[1, 1] - b[0, 1] for b in box)
+    pad = 0.04 * cw
+    cells = ([(0, i) for i in range(len(panels))] if position == "dispersed"
+             else [(i // 2, i % 2) for i in range(len(panels))])
+    if position not in ("dispersed", "stacked"):
+        raise ValueError(f"position must be 'dispersed' or 'stacked', not {position!r}")
+    off = [np.array([c * (cw + pad) + (cw - (b[1, 0] - b[0, 0])) / 2 - b[0, 0],
+                     -r * (ch + pad) + (ch - (b[1, 1] - b[0, 1])) / 2 - b[0, 1]])
+           for (r, c), b in zip(cells, box)]
+
+    if ax is None:
+        rows = 1 + max(r for r, _ in cells)
+        cols = 1 + max(c for _, c in cells)
+        figsize = figsize or (4.5 * cols, 4.5 * rows * ch / cw)
+        fig, ax = plt.subplots(figsize=figsize, facecolor=background)
+        ax.set(aspect=1)
+        ax.set_facecolor(background)
+        ax.axis("off")
+    fig = ax.figure
+    ax.set_title(title)
+
+    for (tri, face, seg), d in zip(panels, off):
+        ax.add_collection(PolyCollection(tri + d, facecolors=face, edgecolors=face,
+                                         linewidths=0.2, zorder=1))
+        if len(seg):
+            ax.add_collection(LineCollection(seg + d, colors=sig_color, lw=sig_lw,
+                                             capstyle="round", zorder=3))
+    ax.autoscale_view()
     if colorbar and values:
         cb = fig.colorbar(mpl.cm.ScalarMappable(norm, cmap), ax=ax,
                           fraction=0.025, pad=0.02)
