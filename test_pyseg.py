@@ -45,7 +45,6 @@ assert c("Cerebellum-Cortex") != c("Left-Cerebellum-Cortex")  # L/R merge stays 
 for a in ("dk", "aseg", "jhu", "glasser", "schaefer7_400"):
     names = pyseg.brain_regions(a)                # no two regions collapse onto each other
     assert len({c(n) for n in names}) == len(names), a
-    pyseg.plot_brain({names[0]: 1.0}, atlas=a, sig=[names[0]])
 
 import warnings
 with warnings.catch_warnings():
@@ -148,6 +147,20 @@ for a in ("dk", "aseg", "glasser", "schaefer7_400"):     # jhu is hand-vendored,
     for pan, _, _ in pyseg.brain_views(a):               # not exported, not a partition
         f = overlap(a, pan)
         assert f < 0.002, f"{a}/{pan} regions overlap over {f:.2%} of the panel"
+
+# Every shipped atlas loads, has regions and panels, and plots.
+cat = pyseg.brain_atlases()
+assert len(cat) >= 20 and cat["dk"] == 70 and cat["schaefer7_400"] == 400, cat
+import matplotlib.pyplot as plt
+for a, n in cat.items():
+    names, views = pyseg.brain_regions(a), pyseg.brain_views(a)
+    assert len(names) == n > 0 and views, a
+    assert len({c(x) for x in names}) == len(names), f"{a}: names collide"
+# one of each shape rather than all 23: two hemispheres, slices, one panel, dense
+for a in ("dk", "aseg", "jhu", "glasser", "schaefer17_1000"):
+    names = pyseg.brain_regions(a)
+    fig, _ = pyseg.plot_brain({names[0]: 1.0}, atlas=a, sig=[names[0]])
+    plt.close(fig)
 
 # ggplot layer
 df = pyseg.as_brain_df("dk")

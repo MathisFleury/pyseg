@@ -4,6 +4,7 @@ The one thing this fixes: ggseg draws each region as a single patch carrying
 both its fill and its edge, so a neighbour drawn later paints over the black
 outline of a significant region. Here fills and outlines are separate passes.
 """
+import gzip
 import os
 import re
 import warnings
@@ -131,21 +132,37 @@ def _smooth(path, n, frac=0.006):
     return Path(np.concatenate(verts), np.concatenate(codes))
 
 
-@lru_cache(maxsize=None)
-def _atlas(atlas, smooth=2):
-    """-> (tuple of Panel, dict of ggseg label -> region name)."""
+def _load(atlas):
+    """Read an atlas -> ([(panel, hemi, side, {region: Path}, [wall])], aliases).
+
+    Built-ins are one gzipped table each (see tools/export_ggseg_atlas.R); a
+    directory of one file per region still works, for atlases you trace yourself.
+    """
+    packed = atlas if os.path.isfile(atlas) else os.path.join(_DATA, f"{atlas}.tsv.gz")
+    if os.path.isfile(packed):
+        panels, alias, paths, wall = [], {}, {}, {}
+        with gzip.open(packed, "rt") as fh:
+            for line in fh:
+                kind, *rest = line.rstrip("\n").split("\t")
+                if kind == "P":
+                    panels.append(tuple(rest[:3]))
+                elif kind == "A":
+                    alias[rest[0]] = rest[1]
+                elif kind in "RW":
+                    pan, name, svg = rest
+                    d = wall if kind == "W" else paths
+                    d.setdefault(pan, {})[name] = Path(*_parse(svg)[::-1])
+        return ([(p, h, s, paths.get(p, {}), list(wall.get(p, {}).values()))
+                 for p, h, s in panels], alias)
+
     wd = atlas if os.path.isdir(atlas) else os.path.join(_DATA, atlas)
     if not os.path.isdir(wd):
-        raise ValueError(f"unknown atlas {atlas!r}; built-in: {sorted(os.listdir(_DATA))}")
+        raise ValueError(f"unknown atlas {atlas!r}; built-in: {sorted(brain_atlases())}")
     name = os.path.basename(wd.rstrip("/"))
-
     spec = os.path.join(wd, "_panels")
-    if os.path.isfile(spec):
-        rows = [ln.rstrip("\n").split("\t") for ln in open(spec) if ln.strip()]
-    else:
-        rows = [("", "", "")]                       # flat, hand-vendored atlas
+    rows = ([ln.rstrip("\n").split("\t") for ln in open(spec) if ln.strip()]
+            if os.path.isfile(spec) else [("", "", "")])
     wall_names = _FLAT_WALL.get(name, [])
-
     raw = []
     for pname, hemi, side in rows:
         pdir = os.path.join(wd, pname)
@@ -155,11 +172,20 @@ def _atlas(atlas, smooth=2):
                 continue
             with open(os.path.join(pdir, f)) as fh:
                 path = Path(*_parse(fh.read())[::-1])
-            if f.startswith("_") or f in wall_names:
-                wall.append(path)
-            else:
-                paths[f] = path
+            (wall.append(path) if f.startswith("_") or f in wall_names
+             else paths.__setitem__(f, path))
         raw.append((pname or name, hemi, side, paths, wall))
+    alias = {}
+    if os.path.isfile(os.path.join(wd, "_aliases")):
+        with open(os.path.join(wd, "_aliases")) as fh:
+            alias = dict(ln.rstrip("\n").split("\t") for ln in fh if "\t" in ln)
+    return raw, alias
+
+
+@lru_cache(maxsize=None)
+def _atlas(atlas, smooth=2):
+    """-> (tuple of Panel, dict of ggseg label -> region name)."""
+    raw, alias = _load(atlas)
 
     ref = {}                    # biggest each parcel gets anywhere in the atlas
     for r in raw:
@@ -185,18 +211,13 @@ def _atlas(atlas, smooth=2):
         i = max((i for i, r in enumerate(raw) if k in r[3]),
                 key=lambda i: raw[i][3][k].get_extents().size.max())
         out[i].paths[k] = _smooth(raw[i][3][k], smooth)
-
-    alias = {}
-    if os.path.isfile(os.path.join(wd, "_aliases")):
-        with open(os.path.join(wd, "_aliases")) as fh:
-            alias = dict(ln.rstrip("\n").split("\t") for ln in fh if "\t" in ln)
     return tuple(out), alias
 
 
 def brain_atlases():
     """Every built-in atlas, with its region count."""
-    return {a: len(brain_regions(a)) for a in sorted(os.listdir(_DATA))
-            if os.path.isdir(os.path.join(_DATA, a))}
+    return {a: len(brain_regions(a)) for a in
+            sorted(f[:-7] for f in os.listdir(_DATA) if f.endswith(".tsv.gz"))}
 
 
 def brain_regions(atlas="dk"):

@@ -10,7 +10,7 @@ suppressMessages(library(sf))
 for (p in c("ggseg", "ggsegSchaefer", "ggsegGlasser", "ggsegExtra"))
   suppressWarnings(suppressMessages(try(library(p, character.only = TRUE), silent = TRUE)))
 
-out_root <- "pyseg/data"
+out_root <- "pyseg/data"   # run from the repo root
 
 # ggseg y grows upward, pyseg reads SVG coordinates (y down), hence oy - Y.
 as_path <- function(geom, ox, oy) {
@@ -83,8 +83,7 @@ for (name in commandArgs(TRUE)) {
   }
   d$grp <- grp[match(d$pane, rownames(xr))]
 
-  wd <- file.path(out_root, name)
-  unlink(wd, recursive = TRUE); dir.create(wd, recursive = TRUE)
+  out <- character()
   panels <- character()
   for (g in sort(unique(d$grp))) {
     sub <- d[d$grp == g, ]
@@ -92,26 +91,30 @@ for (name in commandArgs(TRUE)) {
     hemi <- if (length(hemis) == 1) hemis else ""       # "" = the panel holds both
     pdir <- clean(if (nchar(hemi)) paste(hemi, side, sep = "_") else side)
     b <- st_bbox(sub)
-    dir.create(file.path(wd, pdir))
     keys <- unique(na.omit(sub$key))
     geo <- lapply(keys, function(k)
       st_union(st_make_valid(st_geometry(sub)[which(sub$key == k)])))
     names(geo) <- keys
     if (TOPOLOGY) geo <- partition(geo)
     for (k in keys)
-      writeLines(as_path(geo[[k]], b["xmin"], b["ymax"]), file.path(wd, pdir, k))
+      out <- c(out, paste("R", pdir, k, as_path(geo[[k]], b["xmin"], b["ymax"]), sep = "\t"))
     if (any(is.na(sub$key)))
-      writeLines(as_path(st_geometry(sub)[which(is.na(sub$key))], b["xmin"], b["ymax"]),
-                 file.path(wd, pdir, "_wall"))
-    panels <- c(panels, paste(pdir, hemi, side, sep = "\t"))
+      out <- c(out, paste("W", pdir, "_wall",
+                          as_path(st_geometry(sub)[which(is.na(sub$key))],
+                                  b["xmin"], b["ymax"]), sep = "\t"))
+    panels <- c(panels, paste("P", pdir, hemi, side, sep = "\t"))
   }
-  writeLines(panels, file.path(wd, "_panels"))
-
   if ("label" %in% names(d)) {
     a <- unique(data.frame(label = as.character(d$label), key = d$key))
     a <- a[!is.na(a$label) & !is.na(a$key), ]
-    writeLines(paste(a$label, a$key, sep = "\t"), file.path(wd, "_aliases"))
+    panels <- c(panels, paste("A", a$label, a$key, sep = "\t"))
   }
-  cat(sprintf("%-16s %3d regions, %d panels: %s\n", name, length(unique(na.omit(d$key))),
-              length(panels), paste(sub("\t.*", "", panels), collapse = " ")))
+  dir.create(out_root, showWarnings = FALSE, recursive = TRUE)
+  con <- gzfile(file.path(out_root, paste0(name, ".tsv.gz")), "w")
+  writeLines(c(panels, out), con)
+  close(con)
+  np <- sum(startsWith(panels, "P"))
+  cat(sprintf("%-16s %4d regions, %d panels, %5.0f kB\n", name,
+              length(unique(na.omit(d$key))), np,
+              file.size(file.path(out_root, paste0(name, ".tsv.gz"))) / 1024))
 }

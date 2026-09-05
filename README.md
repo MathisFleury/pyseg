@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.9%2B-blue" alt="python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license">
-  <img src="https://img.shields.io/badge/atlases-5-orange" alt="atlases">
+  <img src="https://img.shields.io/badge/atlases-23-orange" alt="atlases">
   <img src="https://img.shields.io/badge/backend-matplotlib%20%7C%20plotnine-lightgrey" alt="backend">
 </p>
 
@@ -30,7 +30,8 @@ script ready to use.
 ## Features
 
 - **Significance outlines that stay on top** — the reason this exists.
-- **Five atlases**, exported from R: dk, aseg, glasser, schaefer7_400, jhu.
+- **23 atlases** bundled — dk, aseg, glasser, jhu and 19 Schaefer
+  parcellations — with no R needed to use them.
 - **ggseg's layout**: `position`, `hemisphere`, `view`, in ggseg's own vocabulary.
 - **Forgiving region names** — FreeSurfer output plots without renaming a thing.
 - **Clean geometry** — stray specks and coarse corners smoothed out on load.
@@ -109,24 +110,36 @@ that still doesn't match warns instead of vanishing silently.
 
 ## Atlases
 
-| atlas | regions | views |
-|---|---|---|
-| `dk` | 70 | lateral, medial × L/R |
-| `aseg` | 26 | coronal, sagittal |
-| `glasser` | 359 | lateral, medial × L/R |
-| `schaefer7_400` | 400 | lateral, medial × L/R |
-| `jhu` | 21 | one |
+**23 atlases, no R required.** They ship with the package as one small gzipped
+table each — 23 files, 2 MB in total.
 
-`glasser` is 359, not 360 — `10pp` exists in one hemisphere only in
-`ggsegGlasser`. To add any other ggseg atlas, install its R package and run:
+| atlas | regions |
+|---|---|
+| `dk` | 70 |
+| `aseg` | 26 |
+| `glasser` | 359 |
+| `jhu` | 21 |
+| `schaefer7_100` … `schaefer7_900` | 100–884 |
+| `schaefer17_100` … `schaefer17_1000` | 100–978 |
 
-```sh
-Rscript tools/export_ggseg_atlas.R schaefer17_200 dkt   # from the repo root
+```python
+pyseg.brain_atlases()      # every atlas with its region count
 ```
 
-It writes one directory per panel holding one file of SVG path data per region,
-plus `_panels`, `_wall` silhouettes and an `_aliases` table of ggseg's labels.
-`atlas=` also takes a path to such a directory.
+Schaefer's larger parcellations come up short of their nominal count: ggseg's
+2-D traces lose the smallest parcels, so `schaefer7_900` draws 884 of 900. The
+counts above are what actually draws. `schaefer7_1000` is not shipped at all —
+in `ggsegSchaefer` it carries the same 884 labels as `schaefer7_900`.
+
+To add another ggseg atlas, install its R package and run:
+
+```sh
+Rscript tools/export_ggseg_atlas.R dkt aal   # from the repo root
+```
+
+That writes `pyseg/data/<atlas>.tsv.gz`. R is a maintainer's tool, never a
+user's. `atlas=` also takes a path to such a file, or to a directory of one
+file per region if you trace your own.
 
 ## Geometry cleanup
 
