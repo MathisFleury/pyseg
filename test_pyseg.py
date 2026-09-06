@@ -162,6 +162,18 @@ for a in ("dk", "aseg", "jhu", "glasser", "schaefer17_1000"):
     fig, _ = pyseg.plot_brain({names[0]: 1.0}, atlas=a, sig=[names[0]])
     plt.close(fig)
 
+# dim fades everything that is not significant, so the result carries the figure
+fig, dax = pyseg.plot_brain(data, sig=sig, dim=0.3)
+alpha = {round(float(p.get_facecolor()[3]), 2) for p in dax.patches
+         if p.get_facecolor()[3] > 0}
+assert alpha == {0.3, 1.0}, alpha              # faded fills and solid ones, nothing else
+plt.close(fig)
+fig, uax = pyseg.plot_brain(data, sig=sig)     # unchanged without it
+assert {round(float(p.get_facecolor()[3]), 2) for p in uax.patches
+        if p.get_facecolor()[3] > 0} == {1.0}
+plt.close(fig)
+assert len(pyseg.geom_brain(data, sig=sig, dim=0.3).layers) == 2
+
 # Subcortical surfaces. Structures are separate closed meshes, so a structure
 # is marked out by its silhouette, not by a boundary shared with a neighbour.
 from matplotlib.collections import LineCollection
@@ -175,6 +187,11 @@ vals = {r: i - 8 for i, r in enumerate(sr)}
 fig, sax = pyseg.plot_subcortical(vals, sig=["hippocampus_left"])
 lines = [x for x in sax.collections if isinstance(x, LineCollection)]
 assert lines and sum(len(x.get_segments()) for x in lines) > 20, "no outline drawn"
+plt.close(fig)
+fig, fade = pyseg.plot_subcortical(vals, sig=["hippocampus_left"], dim=0.2)
+fc = np.vstack([x.get_facecolor() for x in fade.collections
+                if not isinstance(x, LineCollection)])
+assert set(np.round(np.unique(fc[:, 3]), 2)) == {0.2, 1.0}, np.unique(fc[:, 3])
 plt.close(fig)
 fig, bare = pyseg.plot_subcortical(vals)                # nothing significant
 assert not [x for x in bare.collections if isinstance(x, LineCollection)]

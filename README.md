@@ -30,6 +30,7 @@ script ready to use.
 ## Features
 
 - **Significance outlines that stay on top** — the reason this exists.
+- **`dim=`** to fade everything that is not significant.
 - **23 atlases** bundled — dk, aseg, glasser, jhu and 19 Schaefer
   parcellations — with no R needed to use them.
 - **ggseg's layout**: `position`, `hemisphere`, `view`, in ggseg's own vocabulary.
@@ -63,6 +64,17 @@ fig.savefig("fig.pdf")     # returns (fig, ax); never calls plt.show()
 
 Colours follow ggseg: white borders between regions (`edgecolor`), grey where
 there is no data (`na_color`), black on top for `sig` (`sig_color`, `sig_lw`).
+
+`dim=` fades everything that is not significant, so the result carries the
+figure instead of the outline having to do it alone:
+
+```python
+pyseg.plot_brain(t, sig=hits, dim=0.3)     # 0 to 1; None keeps every region solid
+```
+
+It works the same on `plot_subcortical` and `geom_brain`. Useful when a lot of
+regions clear threshold and the outlines start competing with each other; at a
+low value the significant regions read at a glance.
 
 ### Layout
 

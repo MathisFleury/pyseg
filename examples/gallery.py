@@ -19,10 +19,21 @@ LAYOUTS = [("dispersed", {}),                       # ggseg's default row of fou
            ("left", dict(hemisphere="left")),
            ("lateral", dict(view="lateral"))]
 WIDTHS = [("thin", 0.8), ("default", 2.0), ("bold", 3.5)]
+DIMS = [("solid", None), ("dim", 0.3), ("faded", 0.12)]
 
 t, sig = synthetic("dk", seed=3)
 os.makedirs(OUT, exist_ok=True)
 print(f"{len(sig)}/{len(t)} regions outlined")
+
+# how far to fade what is not significant, at one layout and weight
+for weight, d in DIMS:
+    fig, _ = pyseg.plot_brain(t, sig=sig, cmap="RdBu_r", vmin=-5, vmax=5,
+                              ylabel="t (synthetic)", dim=d,
+                              title=f"Synthetic t-map — dim={d}")
+    stem = os.path.join(OUT, f"dk_dispersed_{weight}")
+    for ext in ("png", "pdf"):
+        fig.savefig(f"{stem}.{ext}", dpi=200, bbox_inches="tight")
+    print(f"  {os.path.basename(stem):24} dim={d}")
 
 for layout, kw in LAYOUTS:
     for weight, lw in WIDTHS:

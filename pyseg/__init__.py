@@ -300,6 +300,7 @@ def _lay_out(atlas, hemisphere, view, position, smooth):
 def plot_brain(data=None, atlas="dk", sig=(), hemisphere=None, view=None,
                position="dispersed", smooth=2, cmap="Spectral", vmin=None, vmax=None,
                na_color="0.85", edgecolor="w", lw=0.5, sig_color="k", sig_lw=2.0,
+               dim=None,
                background="w", figsize=None, title="", ylabel="", colorbar=True,
                ax=None):
     """Plot values on a brain atlas.
@@ -312,6 +313,9 @@ def plot_brain(data=None, atlas="dk", sig=(), hemisphere=None, view=None,
     view : one of `brain_views(atlas)`'s views ("lateral", "medial", ...), or None.
     position : "dispersed" (one row, as ggseg) or "stacked" (views x hemispheres).
     smooth : rounds of corner cutting on the outlines; 0 for ggseg's raw traces.
+    dim : opacity for everything not in `sig`, 0 to 1. Fades the rest of the
+          brain back so the result carries the figure, instead of relying on the
+          outline alone. None leaves every region at full strength.
     Returns (fig, ax); nothing is shown or saved for you.
     """
     if isinstance(sig, dict):
@@ -336,10 +340,15 @@ def plot_brain(data=None, atlas="dk", sig=(), hemisphere=None, view=None,
     norm = mpl.colors.Normalize(min(values, default=0) if vmin is None else vmin,
                                 max(values, default=1) if vmax is None else vmax)
 
+    wall_c = mpl.colors.to_rgba(na_color)
+    if dim is not None:                 # the wall fades with everything else,
+        wall_c = wall_c[:3] + (dim,)    # or it ends up the loudest thing left
     for w in walls:      # silhouette / medial wall: the "no data here" fill
-        ax.add_patch(PathPatch(w, facecolor=na_color, edgecolor="none", zorder=0))
+        ax.add_patch(PathPatch(w, facecolor=wall_c, edgecolor="none", zorder=0))
     for name, p in fills:
-        c = cmap(norm(data[name])) if name in data else na_color
+        c = mpl.colors.to_rgba(cmap(norm(data[name])) if name in data else na_color)
+        if dim is not None and name not in sig:
+            c = c[:3] + (dim,)
         ax.add_patch(PathPatch(p, facecolor=c, edgecolor="none", zorder=1))
     for _, p in fills:                                   # every outline, then
         ax.add_patch(PathPatch(p, facecolor="none", edgecolor=edgecolor,
@@ -396,7 +405,8 @@ def _silhouette(f, front):
 
 def plot_subcortical(data=None, sig=(), hemisphere=None, view=None,
                      position="dispersed", cmap="Spectral", vmin=None, vmax=None,
-                     na_color="0.85", sig_color="k", sig_lw=2.0, background="w",
+                     na_color="0.85", sig_color="k", sig_lw=2.0, dim=None,
+                     background="w",
                      figsize=None, title="", ylabel="", colorbar=True, ax=None):
     """Subcortical structures as surfaces, laid out like the flat panels.
 
@@ -406,6 +416,7 @@ def plot_subcortical(data=None, sig=(), hemisphere=None, view=None,
     front of them can paint over it.
 
     view : "lateral" or "medial"; hemisphere : "left" or "right".
+    dim : opacity for everything not in `sig`, 0 to 1.
     Returns (fig, ax); matplotlib only, no 3-D toolkit.
     """
     if isinstance(sig, dict):
@@ -440,6 +451,13 @@ def plot_subcortical(data=None, sig=(), hemisphere=None, view=None,
         face = np.array([(cmap(norm(data[r])) if r in data else mpl.colors.to_rgba(na_color))
                          for r in (f"{structs[i]}_{hemi}" for i in lab[f[:, 0]][front])])
         face[:, :3] *= shade[:, None]
+        seam = np.full(len(face), 0.2)   # hairline that seals the triangle seams
+        if dim is not None:
+            faded = np.array([f"{structs[i]}_{hemi}" not in sig
+                              for i in lab[f[:, 0]][front]])
+            face[faded, 3] = dim
+            seam[faded] = 0.0            # a stroked seam blends twice once the
+                                         # face is transparent, and stipples it
 
         # Structures occlude each other, so an outline behind one is hidden.
         # Two depth tests, not one: a structure must not cull its own rim. At a
@@ -490,11 +508,11 @@ def plot_subcortical(data=None, sig=(), hemisphere=None, view=None,
                 vis[np.flatnonzero(vis)] = np.isin(cc[idx[:, 0]],
                                                    u[cnt >= max(8, 0.15 * cnt.max())])
             segs.append(uv[e][vis])
-        panels.append((uv[f][front][order], face[order],
+        panels.append((uv[f][front][order], face[order], seam[order],
                        np.concatenate(segs) if segs else np.zeros((0, 2, 2))))
 
     box = [np.array([t.reshape(-1, 2).min(0), t.reshape(-1, 2).max(0)])
-           for t, _, _ in panels]
+           for t, *_ in panels]
     cw = max(b[1, 0] - b[0, 0] for b in box)
     ch = max(b[1, 1] - b[0, 1] for b in box)
     pad = 0.04 * cw
@@ -517,9 +535,9 @@ def plot_subcortical(data=None, sig=(), hemisphere=None, view=None,
     fig = ax.figure
     ax.set_title(title)
 
-    for (tri, face, seg), d in zip(panels, off):
+    for (tri, face, seam, seg), d in zip(panels, off):
         ax.add_collection(PolyCollection(tri + d, facecolors=face, edgecolors=face,
-                                         linewidths=0.2, zorder=1))
+                                         linewidths=seam, zorder=1))
         if len(seg):
             ax.add_collection(LineCollection(seg + d, colors=sig_color, lw=sig_lw,
                                              capstyle="round", zorder=3))
@@ -662,8 +680,8 @@ def as_brain_df(atlas="dk"):
 
 
 def geom_brain(data=None, atlas="dk", sig=(), hemisphere=None, view=None,
-            position="dispersed", edgecolor="w", lw=0.3, sig_color="k",
-            sig_lw=0.9):
+               position="dispersed", edgecolor="w", lw=0.3, sig_color="k",
+               sig_lw=0.9, dim=None):
     """The same plot as a plotnine object, so ggplot2's grammar does the rest:
     add your own scale_fill_*, theme_*, labs, or replace the facetting.
 
@@ -671,7 +689,7 @@ def geom_brain(data=None, atlas="dk", sig=(), hemisphere=None, view=None,
     """
     import pandas as pd
     from plotnine import (aes, coord_equal, facet_grid, facet_wrap, geom_polygon,
-                          ggplot, theme_void)
+                          ggplot, scale_alpha_identity, theme_void)
 
     if isinstance(sig, dict):
         sig = [k for k, v in sig.items() if v]
@@ -687,9 +705,15 @@ def geom_brain(data=None, atlas="dk", sig=(), hemisphere=None, view=None,
 
     # The fix, as ggplot layers: outlines are a later layer, so they cannot be
     # painted over by a neighbour's fill.
+    fill = aes(fill="value")
+    if dim is not None:                 # fade everything that is not significant
+        df["alpha"] = np.where(df.region.isin(sig), 1.0, dim)
+        fill = aes(fill="value", alpha="alpha")
     p = (ggplot(df, aes("x", "y", group="ring"))
-         + geom_polygon(aes(fill="value"), colour=edgecolor, size=lw)
+         + geom_polygon(fill, colour=edgecolor, size=lw)
          + coord_equal() + theme_void())
+    if dim is not None:
+        p += scale_alpha_identity()
     if len(hits := df[df.region.isin(sig)]):
         p += geom_polygon(hits, fill="none", colour=sig_color, size=sig_lw)
     return p + (facet_grid("side ~ hemi") if position == "stacked"
