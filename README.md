@@ -5,7 +5,7 @@
 <h1 align="center">pyseg</h1>
 
 <p align="center">
-  <em>ggseg-style brain plots for Python — with significance outlines that stay on top.</em>
+  <em>ggseg-style brain plots for Python.</em>
 </p>
 
 <p align="center">
