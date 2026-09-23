@@ -15,7 +15,7 @@ from dk_example import synthetic
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gallery")
 
 LAYOUTS = [("dispersed", {}),                       # ggseg's default row of four
-           ("stacked", dict(position="stacked")),   # views x hemispheres
+           ("stacked", dict(position="stacked")),   # ggseg's hemispheres x views
            ("left", dict(hemisphere="left")),
            ("lateral", dict(view="lateral"))]
 WIDTHS = [("thin", 0.8), ("default", 2.0), ("bold", 3.5)]

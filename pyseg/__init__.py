@@ -272,14 +272,16 @@ def _grid(sel, position):
            for p in sel]
     cw, ch = max(b.width for b in box), max(b.height for b in box)
     pad = 0.03 * cw
-    if position == "stacked":
-        rows = list(dict.fromkeys(p.side for p in sel))
-        cols = list(dict.fromkeys(p.hemi for p in sel))
-        cells = [(rows.index(p.side), cols.index(p.hemi)) for p in sel]
-    elif position == "dispersed":
-        cells = [(0, i) for i in range(len(sel))]
-    else:
+    if position not in ("dispersed", "stacked"):
         raise ValueError(f"position must be 'dispersed' or 'stacked', not {position!r}")
+    # ggseg stacks hemispheres down and views across. Panels sharing neither
+    # (aseg's coronal and sagittal-midline) would land in opposite corners with
+    # a hole in the other two, so they stay in one row.
+    rows = list(dict.fromkeys(p.hemi for p in sel))
+    cols = list(dict.fromkeys(p.side for p in sel))
+    cells = ([(rows.index(p.hemi), cols.index(p.side)) for p in sel]
+             if position == "stacked" and len(rows) * len(cols) == len(sel)
+             else [(0, i) for i in range(len(sel))])
     return [(c * (cw + pad) + (cw - b.width) / 2 - b.x0,
              r * (ch + pad) + (ch - b.height) / 2 - b.y0)
             for (r, c), b in zip(cells, box)]
@@ -311,7 +313,9 @@ def plot_brain(data=None, atlas="dk", sig=(), hemisphere=None, view=None,
            Accepts a list/set of names, or a dict of name -> bool.
     hemisphere : "left" / "right", or None for both.
     view : one of `brain_views(atlas)`'s views ("lateral", "medial", ...), or None.
-    position : "dispersed" (one row, as ggseg) or "stacked" (views x hemispheres).
+    position : "dispersed" (one row, as ggseg) or "stacked" (hemispheres x
+               views, as ggseg's; atlases whose panels share neither, like
+               aseg, stay in one row).
     smooth : rounds of corner cutting on the outlines; 0 for ggseg's raw traces.
     dim : opacity for everything not in `sig`, 0 to 1. Fades the rest of the
           brain back so the result carries the figure, instead of relying on the
@@ -324,15 +328,15 @@ def plot_brain(data=None, atlas="dk", sig=(), hemisphere=None, view=None,
 
     fills, walls = _lay_out(atlas, hemisphere, view, position, smooth)
 
+    verts = np.concatenate([p.vertices for _, p in fills] + [w.vertices for w in walls])
+    (x0, y0), (x1, y1) = verts.min(0) - 1, verts.max(0) + 1
     if ax is None:
-        verts = np.concatenate([p.vertices for _, p in fills] + [w.vertices for w in walls])
-        (x0, y0), (x1, y1) = verts.min(0) - 1, verts.max(0) + 1
         figsize = figsize or (14, 14 * (y1 - y0) / (x1 - x0))
         fig, ax = plt.subplots(figsize=figsize, facecolor=background)
-        ax.set(xlim=(x0, x1), ylim=(y1, y0), aspect=1)  # y flipped: SVG coords
         ax.set_facecolor(background)
-        ax.axis("off")
     fig = ax.figure
+    ax.set(xlim=(x0, x1), ylim=(y1, y0), aspect=1)   # y flipped: SVG coords
+    ax.axis("off")
     ax.set_title(title)
 
     values = [v for k, v in data.items() if k in dict(fills)]
@@ -416,6 +420,7 @@ def plot_subcortical(data=None, sig=(), hemisphere=None, view=None,
     front of them can paint over it.
 
     view : "lateral" or "medial"; hemisphere : "left" or "right".
+    position : "dispersed" (one row) or "stacked" (hemispheres x views).
     dim : opacity for everything not in `sig`, 0 to 1.
     Returns (fig, ax); matplotlib only, no 3-D toolkit.
     """
@@ -516,23 +521,26 @@ def plot_subcortical(data=None, sig=(), hemisphere=None, view=None,
     cw = max(b[1, 0] - b[0, 0] for b in box)
     ch = max(b[1, 1] - b[0, 1] for b in box)
     pad = 0.04 * cw
-    cells = ([(0, i) for i in range(len(panels))] if position == "dispersed"
-             else [(i // 2, i % 2) for i in range(len(panels))])
     if position not in ("dispersed", "stacked"):
         raise ValueError(f"position must be 'dispersed' or 'stacked', not {position!r}")
+    rows = list(dict.fromkeys(h for h, _, _ in sel))
+    cols = list(dict.fromkeys(s for _, s, _ in sel))
+    cells = ([(rows.index(h), cols.index(s)) for h, s, _ in sel]
+             if position == "stacked" and len(rows) * len(cols) == len(sel)
+             else [(0, i) for i in range(len(panels))])
     off = [np.array([c * (cw + pad) + (cw - (b[1, 0] - b[0, 0])) / 2 - b[0, 0],
                      -r * (ch + pad) + (ch - (b[1, 1] - b[0, 1])) / 2 - b[0, 1]])
            for (r, c), b in zip(cells, box)]
 
     if ax is None:
-        rows = 1 + max(r for r, _ in cells)
-        cols = 1 + max(c for _, c in cells)
-        figsize = figsize or (4.5 * cols, 4.5 * rows * ch / cw)
+        nrow = 1 + max(r for r, _ in cells)
+        ncol = 1 + max(c for _, c in cells)
+        figsize = figsize or (4.5 * ncol, 4.5 * nrow * ch / cw)
         fig, ax = plt.subplots(figsize=figsize, facecolor=background)
-        ax.set(aspect=1)
         ax.set_facecolor(background)
-        ax.axis("off")
     fig = ax.figure
+    ax.set(aspect=1)
+    ax.axis("off")
     ax.set_title(title)
 
     for (tri, face, seam, seg), d in zip(panels, off):
@@ -716,5 +724,5 @@ def geom_brain(data=None, atlas="dk", sig=(), hemisphere=None, view=None,
         p += scale_alpha_identity()
     if len(hits := df[df.region.isin(sig)]):
         p += geom_polygon(hits, fill="none", colour=sig_color, size=sig_lw)
-    return p + (facet_grid("side ~ hemi") if position == "stacked"
+    return p + (facet_grid("hemi ~ side") if position == "stacked"
                 else facet_wrap("~panel", nrow=1))

@@ -69,6 +69,36 @@ for bad in [dict(view="nope"), dict(position="sideways")]:
     except ValueError:
         pass
 
+# "stacked" is ggseg's grid: hemispheres down, views across. A panel sits at its
+# cell centre, so the rows and columns compare exactly.
+import matplotlib.pyplot as plt
+
+
+def cell_centres(atlas):
+    pan = list(pyseg._atlas(atlas)[0])
+    box = [pyseg.Path.make_compound_path(*(list(p.paths.values()) + p.wall)).get_extents()
+           for p in pan]
+    return {(p.hemi, p.side): (round(b.x0 + dx + b.width / 2, 6),
+                               round(b.y0 + dy + b.height / 2, 6))
+            for p, b, (dx, dy) in zip(pan, box, pyseg._grid(pan, "stacked"))}
+
+
+g = cell_centres("dk")
+assert g["left", "lateral"][1] == g["left", "medial"][1], g      # a row per hemisphere
+assert g["left", "lateral"][1] < g["right", "lateral"][1], g     # left on top (y grows down)
+assert g["left", "lateral"][0] == g["right", "lateral"][0], g    # a column per view
+assert g["left", "lateral"][0] < g["left", "medial"][0], g
+# aseg's two panels share neither row nor column: side by side, not diagonal.
+assert len({y for _, y in cell_centres("aseg").values()}) == 1, cell_centres("aseg")
+
+# A supplied ax gets the limits too -- it used to stay at [0, 1] and draw blank.
+fig, sub = plt.subplots(1, 2)
+pyseg.plot_brain(data, view="lateral", ax=sub[0], colorbar=False)
+assert sub[0].get_xlim()[1] > 2 and sub[0].get_ylim()[0] > sub[0].get_ylim()[1], sub[0]
+pyseg.plot_subcortical({}, ax=sub[1])
+assert sub[1].get_xlim()[1] > 2 and sub[1].get_aspect() == 1
+plt.close(fig)
+
 # Stray-geometry cleanup: ggseg sheds sub-pixel rings and slivers of a parcel in
 # views it barely reaches. Outlined, each one is a lone speck or dash.
 import numpy as np
@@ -151,7 +181,6 @@ for a in ("dk", "aseg", "glasser", "schaefer7_400"):     # jhu is hand-vendored,
 # Every shipped atlas loads, has regions and panels, and plots.
 cat = pyseg.brain_atlases()
 assert len(cat) >= 20 and cat["dk"] == 70 and cat["schaefer7_400"] == 400, cat
-import matplotlib.pyplot as plt
 for a, n in cat.items():
     names, views = pyseg.brain_regions(a), pyseg.brain_views(a)
     assert len(names) == n > 0 and views, a

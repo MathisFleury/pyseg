@@ -240,7 +240,7 @@ def tile(panels, position):
     ch = max(b[1, 1] - b[0, 1] for b in box)
     pad = 0.04 * cw
     cells = ([(0, i) for i in range(len(panels))] if position == "dispersed"
-             else [(0, 0), (1, 0), (1, 1), (0, 1)])
+             else [(0, 0), (0, 1), (1, 1), (1, 0)])   # hemispheres down, views across
     off = [np.array([c * (cw + pad) + (cw - (b[1, 0] - b[0, 0])) / 2 - b[0, 0],
                      -r * (ch + pad) + (ch - (b[1, 1] - b[0, 1])) / 2 - b[0, 1]])
            for (r, c), b in zip(cells, box)]

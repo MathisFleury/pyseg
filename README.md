@@ -79,7 +79,7 @@ low value the significant regions read at a glance.
 ### Layout
 
 ```python
-pyseg.plot_brain(t, position="stacked")   # views x hemispheres; default "dispersed"
+pyseg.plot_brain(t, position="stacked")   # hemispheres x views, as ggseg's facets
 pyseg.plot_brain(t, hemisphere="left")
 pyseg.plot_brain(t, view="lateral")
 ```
